@@ -1,0 +1,32 @@
+# Build artifacts
+/build/
+/out/
+/cmake-build-*/
+/CMakeFiles/
+/CMakeCache.txt
+/CTestTestfile.cmake
+/Testing/
+/Makefile
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+/.vs/
+*.user
+*.obj
+*.pdb
+*.lib
+*.dll
+*.exe
+
+# Logs
+/logs/
+*.log
+
+# Environment
+.env*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
