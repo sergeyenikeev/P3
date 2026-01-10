@@ -59,10 +59,24 @@ TEST_CASE(ParseArgsBasic) {
     bool ok = ParseArgs({"--source", temp_dir.string(),
                          "--email", "user@mail.ru",
                          "--dry-run"},
-                        &config, &error);
+                        temp_dir, &config, &error);
     EXPECT_TRUE(ok);
     EXPECT_EQ(config.email, "user@mail.ru");
     EXPECT_TRUE(config.dry_run);
+}
+
+TEST_CASE(ParseArgsDefaultSource) {
+    std::filesystem::path root_dir = std::filesystem::temp_directory_path() / "uploader_default_root_test";
+    std::error_code ec;
+    std::filesystem::remove_all(root_dir, ec);
+
+    AppConfig config;
+    std::string error;
+    bool ok = ParseArgs({"--email", "user@mail.ru", "--dry-run"}, root_dir, &config, &error);
+    EXPECT_TRUE(ok);
+    std::filesystem::path expected = std::filesystem::absolute(root_dir / "p");
+    EXPECT_EQ(config.source, expected);
+    EXPECT_TRUE(std::filesystem::exists(expected));
 }
 
 TEST_CASE(NormalizeRemote) {

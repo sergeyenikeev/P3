@@ -16,12 +16,19 @@ cmake --build build --config Release
 
 ## Использование
 ```bat
+build\Release\uploader.exe --email "user@mail.ru" --app-password "****"
+```
+
+Пример с явным источником:
+```bat
 build\Release\uploader.exe --source "C:\Data\ToUpload" --remote "/PublicUploadRoot" --email "user@mail.ru" --app-password "****"
 ```
 
 Обязательные параметры:
-- `--source` путь к локальной директории
 - `--email` email для WebDAV
+
+Параметры с умолчанием:
+- `--source` если не задан, используется подпапка `p` рядом с исполняемым файлом (`<exe_dir>\p`). Каталог создаётся автоматически.
 
 Рекомендуемые параметры:
 - `--remote` удалённый корень назначения (по умолчанию `/PublicUploadRoot`)

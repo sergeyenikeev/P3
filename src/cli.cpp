@@ -33,9 +33,11 @@ std::string BuildUsage() {
     oss << "Usage:\n";
     oss << "  uploader.exe --source <path> --email <user@mail.ru> [options]\n\n";
     oss << "Required:\n";
-    oss << "  --source <path>\n";
     oss << "  --email <email>\n\n";
+    oss << "Defaults:\n";
+    oss << "  --source <exe_dir>\\p\n\n";
     oss << "Options:\n";
+    oss << "  --source <path>             Source directory.\n";
     oss << "  --app-password <password>   App password (required unless --dry-run).\n";
     oss << "  --remote <path>             Remote root (default: /PublicUploadRoot).\n";
     oss << "  --base-url <url>            WebDAV base URL (default: https://webdav.cloud.mail.ru).\n";
@@ -47,7 +49,10 @@ std::string BuildUsage() {
     return oss.str();
 }
 
-bool ParseArgs(const std::vector<std::string>& args, AppConfig* config, std::string* error) {
+bool ParseArgs(const std::vector<std::string>& args,
+               const std::filesystem::path& default_source_root,
+               AppConfig* config,
+               std::string* error) {
     if (!config) {
         if (error) {
             *error = "Internal error: config is null";
@@ -55,6 +60,7 @@ bool ParseArgs(const std::vector<std::string>& args, AppConfig* config, std::str
         return false;
     }
 
+    bool source_set = false;
     for (size_t i = 0; i < args.size(); ++i) {
         const std::string& arg = args[i];
         if (IsFlag(arg, "--help") || IsFlag(arg, "-h")) {
@@ -69,6 +75,7 @@ bool ParseArgs(const std::vector<std::string>& args, AppConfig* config, std::str
                 return false;
             }
             config->source = std::filesystem::path(value);
+            source_set = true;
             continue;
         }
         if (IsFlag(arg, "--remote")) {
@@ -155,11 +162,20 @@ bool ParseArgs(const std::vector<std::string>& args, AppConfig* config, std::str
         return false;
     }
 
-    if (config->source.empty()) {
-        if (error) {
-            *error = "Missing --source";
+    if (!source_set) {
+        std::filesystem::path base = default_source_root;
+        if (base.empty()) {
+            base = std::filesystem::current_path();
         }
-        return false;
+        config->source = base / "p";
+        std::error_code create_ec;
+        std::filesystem::create_directories(config->source, create_ec);
+        if (create_ec) {
+            if (error) {
+                *error = "Failed to create default source dir: " + config->source.string();
+            }
+            return false;
+        }
     }
     if (config->email.empty()) {
         if (error) {

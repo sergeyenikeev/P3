@@ -1,8 +1,28 @@
+#include <filesystem>
 #include <iostream>
+
+#include <windows.h>
 
 #include "cli.h"
 #include "logger.h"
 #include "sync_engine.h"
+
+namespace {
+
+std::filesystem::path GetExecutableDir() {
+    std::wstring buffer;
+    buffer.resize(32768);
+    DWORD size = GetModuleFileNameW(nullptr, buffer.data(),
+                                   static_cast<DWORD>(buffer.size()));
+    if (size == 0 || size >= buffer.size()) {
+        return std::filesystem::current_path();
+    }
+    buffer.resize(size);
+    std::filesystem::path exe_path(buffer);
+    return exe_path.parent_path();
+}
+
+}  // namespace
 
 int main(int argc, char** argv) {
     std::vector<std::string> args;
@@ -12,7 +32,8 @@ int main(int argc, char** argv) {
 
     AppConfig config;
     std::string error;
-    if (!ParseArgs(args, &config, &error)) {
+    std::filesystem::path exe_dir = GetExecutableDir();
+    if (!ParseArgs(args, exe_dir, &config, &error)) {
         if (!error.empty()) {
             std::cerr << "Error: " << error << "\n\n";
         }
