@@ -1,7 +1,9 @@
 #include "cli.h"
 
+#include <cctype>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <sstream>
 
 #include "path_utils.h"
@@ -32,6 +34,81 @@ std::string GetEnvValue(const char* name) {
     return value ? value : "";
 }
 
+std::string Trim(const std::string& value) {
+    size_t start = 0;
+    while (start < value.size() && std::isspace(static_cast<unsigned char>(value[start]))) {
+        start++;
+    }
+    size_t end = value.size();
+    while (end > start && std::isspace(static_cast<unsigned char>(value[end - 1]))) {
+        end--;
+    }
+    return value.substr(start, end - start);
+}
+
+void StripBom(std::string* value) {
+    if (!value) {
+        return;
+    }
+    const std::string bom = "\xEF\xBB\xBF";
+    if (value->compare(0, bom.size(), bom) == 0) {
+        value->erase(0, bom.size());
+    }
+}
+
+bool LoadCredentialsFile(const std::filesystem::path& path,
+                         std::string* email,
+                         std::string* app_password,
+                         std::string* error) {
+    std::error_code ec;
+    if (!std::filesystem::exists(path, ec)) {
+        return false;
+    }
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        if (error) {
+            *error = "Failed to open config file: " + path.string();
+        }
+        return false;
+    }
+
+    std::string line;
+    while (std::getline(file, line)) {
+        std::string trimmed = Trim(line);
+        if (trimmed.empty()) {
+            continue;
+        }
+        if (trimmed[0] == '#' || trimmed[0] == ';') {
+            continue;
+        }
+        auto pos = trimmed.find('=');
+        if (pos == std::string::npos) {
+            continue;
+        }
+        std::string key = Trim(trimmed.substr(0, pos));
+        std::string value = Trim(trimmed.substr(pos + 1));
+        if (key.empty()) {
+            continue;
+        }
+        StripBom(&key);
+        if (value.size() >= 2 && value.front() == '"' && value.back() == '"') {
+            value = value.substr(1, value.size() - 2);
+        }
+        std::string key_lower = ToLowerAscii(key);
+        if (key_lower == "email") {
+            if (email && email->empty()) {
+                *email = value;
+            }
+        } else if (key_lower == "app_password" || key_lower == "app-password") {
+            if (app_password && app_password->empty()) {
+                *app_password = value;
+            }
+        }
+    }
+
+    return true;
+}
+
 }  // namespace
 
 std::string BuildUsage() {
@@ -43,6 +120,8 @@ std::string BuildUsage() {
     oss << "  --app-password <password>\n\n";
     oss << "Defaults:\n";
     oss << "  --source <exe_dir>\\p\n\n";
+    oss << "Config file:\n";
+    oss << "  <exe_dir>\\uploader.conf with email/app_password.\n";
     oss << "Environment:\n";
     oss << "  MAILRU_EMAIL and MAILRU_APP_PASSWORD can provide credentials.\n\n";
     oss << "Options:\n";
@@ -182,6 +261,22 @@ bool ParseArgs(const std::vector<std::string>& args,
         if (create_ec) {
             if (error) {
                 *error = "Failed to create default source dir: " + config->source.string();
+            }
+            return false;
+        }
+    }
+
+    std::filesystem::path config_root = default_source_root;
+    if (config_root.empty()) {
+        config_root = std::filesystem::current_path();
+    }
+    std::filesystem::path config_path = config_root / "uploader.conf";
+    if (config->email.empty() || config->app_password.empty()) {
+        std::string cfg_error;
+        LoadCredentialsFile(config_path, &config->email, &config->app_password, &cfg_error);
+        if (!cfg_error.empty()) {
+            if (error) {
+                *error = cfg_error;
             }
             return false;
         }

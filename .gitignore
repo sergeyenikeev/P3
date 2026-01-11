@@ -23,6 +23,9 @@
 /logs/
 *.log
 
+# Local config
+/uploader.conf
+
 # Environment
 .env*
 !.env.example

@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <stdexcept>
@@ -110,6 +111,45 @@ TEST_CASE(ParseArgsNoParams) {
     std::filesystem::path expected = std::filesystem::absolute(root_dir / "p");
     EXPECT_EQ(config.source, expected);
     EXPECT_TRUE(std::filesystem::exists(expected));
+
+    if (had_email) {
+        SetEnvValue("MAILRU_EMAIL", old_email);
+    } else {
+        UnsetEnvValue("MAILRU_EMAIL");
+    }
+    if (had_pass) {
+        SetEnvValue("MAILRU_APP_PASSWORD", old_pass);
+    } else {
+        UnsetEnvValue("MAILRU_APP_PASSWORD");
+    }
+}
+
+TEST_CASE(ParseArgsConfigFile) {
+    std::filesystem::path root_dir = std::filesystem::temp_directory_path() / "uploader_default_root_cfg";
+    std::error_code ec;
+    std::filesystem::remove_all(root_dir, ec);
+    std::filesystem::create_directories(root_dir);
+
+    std::string old_email = GetEnvValue("MAILRU_EMAIL");
+    std::string old_pass = GetEnvValue("MAILRU_APP_PASSWORD");
+    bool had_email = !old_email.empty();
+    bool had_pass = !old_pass.empty();
+    UnsetEnvValue("MAILRU_EMAIL");
+    UnsetEnvValue("MAILRU_APP_PASSWORD");
+
+    std::filesystem::path cfg = root_dir / "uploader.conf";
+    std::ofstream out(cfg);
+    out << "email=user@mail.ru\n";
+    out << "app_password=pass\n";
+    out.close();
+
+    AppConfig config;
+    std::string error;
+    bool ok = ParseArgs({}, root_dir, &config, &error);
+    EXPECT_TRUE(ok);
+    EXPECT_TRUE(!config.dry_run);
+    EXPECT_EQ(config.email, "user@mail.ru");
+    EXPECT_EQ(config.app_password, "pass");
 
     if (had_email) {
         SetEnvValue("MAILRU_EMAIL", old_email);
