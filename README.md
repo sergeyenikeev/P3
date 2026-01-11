@@ -20,14 +20,27 @@ cmake --build build --config Release
 build\Release\uploader.exe
 ```
 
-### Конфиг‑файл для учётных данных
-Файл `uploader.conf` должен лежать рядом с исполняемым файлом (`<exe_dir>\uploader.conf`) и **не должен попадать в git** (он уже добавлен в `.gitignore`).
+### Конфиг‑файл для учётных данных и параметров
+Файл `uploader.conf` должен лежать рядом с исполняемым файлом (`<exe_dir>\uploader.conf`) и **не должен попадать в git** (он добавлен в `.gitignore`).
 
 Формат:
 ```
 email=user@mail.ru
 app_password=****
+source=C:\Data\ToUpload
+remote=/PublicUploadRoot
+base_url=https://webdav.cloud.mail.ru
+threads=2
+compare=size-mtime
+dry_run=false
+exclude=.git
+exclude=*.tmp
 ```
+
+Правила конфигурации:
+- `source` может быть относительным (будет вычислен относительно папки exe).
+- `exclude` можно указывать несколько раз.
+- Приоритет: CLI‑параметры → `uploader.conf` → переменные окружения.
 
 ### Переменные окружения (альтернатива)
 - `MAILRU_EMAIL`

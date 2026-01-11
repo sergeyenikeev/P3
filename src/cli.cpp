@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <vector>
 
 #include "path_utils.h"
 
@@ -56,12 +57,48 @@ void StripBom(std::string* value) {
     }
 }
 
-bool LoadCredentialsFile(const std::filesystem::path& path,
-                         std::string* email,
-                         std::string* app_password,
-                         std::string* error) {
-    std::error_code ec;
-    if (!std::filesystem::exists(path, ec)) {
+struct ConfigFileData {
+    std::filesystem::path source;
+    bool has_source = false;
+    std::string remote;
+    bool has_remote = false;
+    std::string base_url;
+    bool has_base_url = false;
+    int threads = 1;
+    bool has_threads = false;
+    CompareMode compare_mode = CompareMode::SizeMtime;
+    bool has_compare = false;
+    bool dry_run = false;
+    bool has_dry_run = false;
+    std::vector<std::string> excludes;
+    std::string email;
+    std::string app_password;
+};
+
+bool ParseBoolValue(const std::string& value, bool* out) {
+    std::string lower = ToLowerAscii(Trim(value));
+    if (lower == "1" || lower == "true" || lower == "yes" || lower == "on") {
+        if (out) {
+            *out = true;
+        }
+        return true;
+    }
+    if (lower == "0" || lower == "false" || lower == "no" || lower == "off") {
+        if (out) {
+            *out = false;
+        }
+        return true;
+    }
+    return false;
+}
+
+bool LoadConfigFile(const std::filesystem::path& path,
+                    ConfigFileData* out,
+                    std::string* error) {
+    if (!out) {
+        if (error) {
+            *error = "Internal error: config output is null";
+        }
         return false;
     }
     std::ifstream file(path);
@@ -94,14 +131,61 @@ bool LoadCredentialsFile(const std::filesystem::path& path,
         if (value.size() >= 2 && value.front() == '"' && value.back() == '"') {
             value = value.substr(1, value.size() - 2);
         }
+        std::string value_lower = ToLowerAscii(value);
+        if (value_lower == "test") {
+            continue;
+        }
         std::string key_lower = ToLowerAscii(key);
         if (key_lower == "email") {
-            if (email && email->empty()) {
-                *email = value;
-            }
+            out->email = value;
         } else if (key_lower == "app_password" || key_lower == "app-password") {
-            if (app_password && app_password->empty()) {
-                *app_password = value;
+            out->app_password = value;
+        } else if (key_lower == "source") {
+            out->source = std::filesystem::path(value);
+            out->has_source = true;
+        } else if (key_lower == "remote") {
+            out->remote = value;
+            out->has_remote = true;
+        } else if (key_lower == "base_url" || key_lower == "base-url") {
+            out->base_url = value;
+            out->has_base_url = true;
+        } else if (key_lower == "threads") {
+            try {
+                out->threads = std::stoi(value);
+                out->has_threads = true;
+            } catch (...) {
+                if (error) {
+                    *error = "Invalid threads value in config: " + value;
+                }
+                return false;
+            }
+        } else if (key_lower == "compare") {
+            std::string mode = ToLowerAscii(value);
+            if (mode == "size-mtime") {
+                out->compare_mode = CompareMode::SizeMtime;
+                out->has_compare = true;
+            } else if (mode == "size-only") {
+                out->compare_mode = CompareMode::SizeOnly;
+                out->has_compare = true;
+            } else {
+                if (error) {
+                    *error = "Invalid compare value in config: " + value;
+                }
+                return false;
+            }
+        } else if (key_lower == "dry_run" || key_lower == "dry-run") {
+            bool parsed = false;
+            if (!ParseBoolValue(value, &parsed)) {
+                if (error) {
+                    *error = "Invalid dry_run value in config: " + value;
+                }
+                return false;
+            }
+            out->dry_run = parsed;
+            out->has_dry_run = true;
+        } else if (key_lower == "exclude") {
+            if (!value.empty()) {
+                out->excludes.push_back(value);
             }
         }
     }
@@ -121,7 +205,7 @@ std::string BuildUsage() {
     oss << "Defaults:\n";
     oss << "  --source <exe_dir>\\p\n\n";
     oss << "Config file:\n";
-    oss << "  <exe_dir>\\uploader.conf with email/app_password.\n";
+    oss << "  <exe_dir>\\uploader.conf with email/app_password/source/remote/base_url/threads/compare/dry_run/exclude.\n";
     oss << "Environment:\n";
     oss << "  MAILRU_EMAIL and MAILRU_APP_PASSWORD can provide credentials.\n\n";
     oss << "Options:\n";
@@ -149,6 +233,13 @@ bool ParseArgs(const std::vector<std::string>& args,
     }
 
     bool source_set = false;
+    bool remote_set = false;
+    bool base_url_set = false;
+    bool threads_set = false;
+    bool compare_set = false;
+    bool dry_run_set = false;
+    bool email_set = false;
+    bool app_password_set = false;
     for (size_t i = 0; i < args.size(); ++i) {
         const std::string& arg = args[i];
         if (IsFlag(arg, "--help") || IsFlag(arg, "-h")) {
@@ -172,6 +263,7 @@ bool ParseArgs(const std::vector<std::string>& args,
                 return false;
             }
             config->remote = value;
+            remote_set = true;
             continue;
         }
         if (IsFlag(arg, "--email")) {
@@ -180,6 +272,7 @@ bool ParseArgs(const std::vector<std::string>& args,
                 return false;
             }
             config->email = value;
+            email_set = true;
             continue;
         }
         if (IsFlag(arg, "--app-password")) {
@@ -188,6 +281,7 @@ bool ParseArgs(const std::vector<std::string>& args,
                 return false;
             }
             config->app_password = value;
+            app_password_set = true;
             continue;
         }
         if (IsFlag(arg, "--base-url")) {
@@ -196,10 +290,12 @@ bool ParseArgs(const std::vector<std::string>& args,
                 return false;
             }
             config->base_url = value;
+            base_url_set = true;
             continue;
         }
         if (IsFlag(arg, "--dry-run")) {
             config->dry_run = true;
+            dry_run_set = true;
             continue;
         }
         if (IsFlag(arg, "--threads")) {
@@ -209,6 +305,7 @@ bool ParseArgs(const std::vector<std::string>& args,
             }
             try {
                 config->threads = std::stoi(value);
+                threads_set = true;
             } catch (...) {
                 if (error) {
                     *error = "Invalid threads value: " + value;
@@ -233,8 +330,10 @@ bool ParseArgs(const std::vector<std::string>& args,
             std::string mode = ToLowerAscii(value);
             if (mode == "size-mtime") {
                 config->compare_mode = CompareMode::SizeMtime;
+                compare_set = true;
             } else if (mode == "size-only") {
                 config->compare_mode = CompareMode::SizeOnly;
+                compare_set = true;
             } else {
                 if (error) {
                     *error = "Unknown compare mode: " + value;
@@ -250,6 +349,66 @@ bool ParseArgs(const std::vector<std::string>& args,
         return false;
     }
 
+    std::filesystem::path config_root = default_source_root;
+    if (config_root.empty()) {
+        config_root = std::filesystem::current_path();
+    }
+    std::filesystem::path config_path = config_root / "uploader.conf";
+    std::error_code config_ec;
+    if (std::filesystem::exists(config_path, config_ec)) {
+        if (config_ec) {
+            if (error) {
+                *error = "Failed to access config file: " + config_path.string();
+            }
+            return false;
+        }
+        ConfigFileData file_data;
+        std::string cfg_error;
+        if (!LoadConfigFile(config_path, &file_data, &cfg_error)) {
+            if (error) {
+                *error = cfg_error;
+            }
+            return false;
+        }
+        if (!source_set && file_data.has_source) {
+            std::filesystem::path cfg_source = file_data.source;
+            if (cfg_source.is_relative()) {
+                cfg_source = config_root / cfg_source;
+            }
+            config->source = cfg_source;
+            source_set = true;
+        }
+        if (!remote_set && file_data.has_remote) {
+            config->remote = file_data.remote;
+        }
+        if (!base_url_set && file_data.has_base_url) {
+            config->base_url = file_data.base_url;
+        }
+        if (!threads_set && file_data.has_threads) {
+            config->threads = file_data.threads;
+        }
+        if (!compare_set && file_data.has_compare) {
+            config->compare_mode = file_data.compare_mode;
+        }
+        if (!dry_run_set && file_data.has_dry_run) {
+            config->dry_run = file_data.dry_run;
+        }
+        if (config->email.empty() && !file_data.email.empty()) {
+            config->email = file_data.email;
+        }
+        if (config->app_password.empty() && !file_data.app_password.empty()) {
+            config->app_password = file_data.app_password;
+        }
+        for (const auto& pattern : file_data.excludes) {
+            config->excludes.push_back(pattern);
+        }
+    } else if (config_ec) {
+        if (error) {
+            *error = "Failed to access config file: " + config_path.string();
+        }
+        return false;
+    }
+
     if (!source_set) {
         std::filesystem::path base = default_source_root;
         if (base.empty()) {
@@ -261,22 +420,6 @@ bool ParseArgs(const std::vector<std::string>& args,
         if (create_ec) {
             if (error) {
                 *error = "Failed to create default source dir: " + config->source.string();
-            }
-            return false;
-        }
-    }
-
-    std::filesystem::path config_root = default_source_root;
-    if (config_root.empty()) {
-        config_root = std::filesystem::current_path();
-    }
-    std::filesystem::path config_path = config_root / "uploader.conf";
-    if (config->email.empty() || config->app_password.empty()) {
-        std::string cfg_error;
-        LoadCredentialsFile(config_path, &config->email, &config->app_password, &cfg_error);
-        if (!cfg_error.empty()) {
-            if (error) {
-                *error = cfg_error;
             }
             return false;
         }
@@ -298,13 +441,13 @@ bool ParseArgs(const std::vector<std::string>& args,
     if (!config->dry_run) {
         if (config->email.empty()) {
             if (error) {
-                *error = "Missing --email (or MAILRU_EMAIL)";
+                *error = "Missing --email (or MAILRU_EMAIL/uploader.conf)";
             }
             return false;
         }
         if (config->app_password.empty()) {
             if (error) {
-                *error = "Missing --app-password (or MAILRU_APP_PASSWORD)";
+                *error = "Missing --app-password (or MAILRU_APP_PASSWORD/uploader.conf)";
             }
             return false;
         }

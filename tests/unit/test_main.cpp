@@ -126,9 +126,10 @@ TEST_CASE(ParseArgsNoParams) {
 
 TEST_CASE(ParseArgsConfigFile) {
     std::filesystem::path root_dir = std::filesystem::temp_directory_path() / "uploader_default_root_cfg";
+    std::filesystem::path data_dir = root_dir / "data";
     std::error_code ec;
     std::filesystem::remove_all(root_dir, ec);
-    std::filesystem::create_directories(root_dir);
+    std::filesystem::create_directories(data_dir);
 
     std::string old_email = GetEnvValue("MAILRU_EMAIL");
     std::string old_pass = GetEnvValue("MAILRU_APP_PASSWORD");
@@ -141,15 +142,29 @@ TEST_CASE(ParseArgsConfigFile) {
     std::ofstream out(cfg);
     out << "email=user@mail.ru\n";
     out << "app_password=pass\n";
+    out << "source=data\n";
+    out << "remote=/ConfigRemote\n";
+    out << "base_url=http://127.0.0.1:19000\n";
+    out << "threads=3\n";
+    out << "compare=size-only\n";
+    out << "dry_run=true\n";
+    out << "exclude=*.tmp\n";
+    out << "exclude=build/*\n";
     out.close();
 
     AppConfig config;
     std::string error;
     bool ok = ParseArgs({}, root_dir, &config, &error);
     EXPECT_TRUE(ok);
-    EXPECT_TRUE(!config.dry_run);
+    EXPECT_TRUE(config.dry_run);
     EXPECT_EQ(config.email, "user@mail.ru");
     EXPECT_EQ(config.app_password, "pass");
+    EXPECT_EQ(config.remote, "/ConfigRemote");
+    EXPECT_EQ(config.base_url, "http://127.0.0.1:19000");
+    EXPECT_EQ(config.threads, 3);
+    EXPECT_EQ(config.compare_mode, CompareMode::SizeOnly);
+    EXPECT_EQ(config.source, std::filesystem::absolute(data_dir));
+    EXPECT_TRUE(!config.excludes.empty());
 
     if (had_email) {
         SetEnvValue("MAILRU_EMAIL", old_email);
