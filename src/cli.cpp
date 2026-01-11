@@ -1,5 +1,6 @@
 #include "cli.h"
 
+#include <cstdlib>
 #include <filesystem>
 #include <sstream>
 
@@ -26,6 +27,11 @@ bool ReadValue(const std::vector<std::string>& args,
     return true;
 }
 
+std::string GetEnvValue(const char* name) {
+    const char* value = std::getenv(name);
+    return value ? value : "";
+}
+
 }  // namespace
 
 std::string BuildUsage() {
@@ -36,8 +42,9 @@ std::string BuildUsage() {
     oss << "  --email <email>\n";
     oss << "  --app-password <password>\n\n";
     oss << "Defaults:\n";
-    oss << "  if no arguments: --dry-run and --source <exe_dir>\\p\n";
     oss << "  --source <exe_dir>\\p\n\n";
+    oss << "Environment:\n";
+    oss << "  MAILRU_EMAIL and MAILRU_APP_PASSWORD can provide credentials.\n\n";
     oss << "Options:\n";
     oss << "  --source <path>             Source directory.\n";
     oss << "  --app-password <password>   App password (required for sync).\n";
@@ -60,10 +67,6 @@ bool ParseArgs(const std::vector<std::string>& args,
             *error = "Internal error: config is null";
         }
         return false;
-    }
-
-    if (args.empty()) {
-        config->dry_run = true;
     }
 
     bool source_set = false;
@@ -183,6 +186,14 @@ bool ParseArgs(const std::vector<std::string>& args,
             return false;
         }
     }
+
+    if (config->email.empty()) {
+        config->email = GetEnvValue("MAILRU_EMAIL");
+    }
+    if (config->app_password.empty()) {
+        config->app_password = GetEnvValue("MAILRU_APP_PASSWORD");
+    }
+
     if (!config->app_password.empty() && config->email.empty()) {
         if (error) {
             *error = "--app-password requires --email";
@@ -192,13 +203,13 @@ bool ParseArgs(const std::vector<std::string>& args,
     if (!config->dry_run) {
         if (config->email.empty()) {
             if (error) {
-                *error = "Missing --email";
+                *error = "Missing --email (or MAILRU_EMAIL)";
             }
             return false;
         }
         if (config->app_password.empty()) {
             if (error) {
-                *error = "Missing --app-password (required for non dry-run)";
+                *error = "Missing --app-password (or MAILRU_APP_PASSWORD)";
             }
             return false;
         }

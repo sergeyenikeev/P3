@@ -15,23 +15,33 @@ cmake --build build --config Release
 ```
 
 ## Использование
-Запуск без параметров (dry-run и источник `<exe_dir>\p`):
+Запуск без параметров (реальная синхронизация):
 ```bat
 build\Release\uploader.exe
 ```
 
-Пример с явным источником и реальной синхронизацией:
+Для запуска без параметров должны быть заданы переменные окружения:
+- `MAILRU_EMAIL`
+- `MAILRU_APP_PASSWORD`
+
+Пример для PowerShell:
+```powershell
+$env:MAILRU_EMAIL = "user@mail.ru"
+$env:MAILRU_APP_PASSWORD = "****"
+build\Release\uploader.exe
+```
+
+Пример с явным источником и параметрами:
 ```bat
 build\Release\uploader.exe --source "C:\Data\ToUpload" --remote "/PublicUploadRoot" --email "user@mail.ru" --app-password "****"
 ```
 
-Обязательные параметры для синхронизации:
+Обязательные параметры для синхронизации (если не заданы через переменные окружения):
 - `--email` email для WebDAV
 - `--app-password` пароль приложения
 
 Параметры с умолчанием:
 - `--source` если не задан, используется подпапка `p` рядом с исполняемым файлом (`<exe_dir>\p`). Каталог создаётся автоматически.
-- если параметры не заданы вовсе, автоматически включается `--dry-run`.
 
 Рекомендуемые параметры:
 - `--remote` удалённый корень назначения (по умолчанию `/PublicUploadRoot`)

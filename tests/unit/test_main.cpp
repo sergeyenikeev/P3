@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <filesystem>
 #include <functional>
 #include <iostream>
@@ -28,6 +29,27 @@ struct Registrar {
         Registry().push_back({name, std::move(func)});
     }
 };
+
+std::string GetEnvValue(const char* name) {
+    const char* value = std::getenv(name);
+    return value ? value : "";
+}
+
+void SetEnvValue(const char* name, const std::string& value) {
+#ifdef _WIN32
+    _putenv_s(name, value.c_str());
+#else
+    setenv(name, value.c_str(), 1);
+#endif
+}
+
+void UnsetEnvValue(const char* name) {
+#ifdef _WIN32
+    _putenv_s(name, "");
+#else
+    unsetenv(name);
+#endif
+}
 
 #define TEST_CASE(name) \
     void name(); \
@@ -70,15 +92,35 @@ TEST_CASE(ParseArgsNoParams) {
     std::error_code ec;
     std::filesystem::remove_all(root_dir, ec);
 
+    std::string old_email = GetEnvValue("MAILRU_EMAIL");
+    std::string old_pass = GetEnvValue("MAILRU_APP_PASSWORD");
+    bool had_email = !old_email.empty();
+    bool had_pass = !old_pass.empty();
+
+    SetEnvValue("MAILRU_EMAIL", "user@mail.ru");
+    SetEnvValue("MAILRU_APP_PASSWORD", "pass");
+
     AppConfig config;
     std::string error;
     bool ok = ParseArgs({}, root_dir, &config, &error);
     EXPECT_TRUE(ok);
-    EXPECT_TRUE(config.dry_run);
-    EXPECT_TRUE(config.email.empty());
+    EXPECT_TRUE(!config.dry_run);
+    EXPECT_EQ(config.email, "user@mail.ru");
+    EXPECT_EQ(config.app_password, "pass");
     std::filesystem::path expected = std::filesystem::absolute(root_dir / "p");
     EXPECT_EQ(config.source, expected);
     EXPECT_TRUE(std::filesystem::exists(expected));
+
+    if (had_email) {
+        SetEnvValue("MAILRU_EMAIL", old_email);
+    } else {
+        UnsetEnvValue("MAILRU_EMAIL");
+    }
+    if (had_pass) {
+        SetEnvValue("MAILRU_APP_PASSWORD", old_pass);
+    } else {
+        UnsetEnvValue("MAILRU_APP_PASSWORD");
+    }
 }
 
 TEST_CASE(ParseArgsDefaultSource) {
