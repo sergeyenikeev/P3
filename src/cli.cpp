@@ -31,14 +31,16 @@ bool ReadValue(const std::vector<std::string>& args,
 std::string BuildUsage() {
     std::ostringstream oss;
     oss << "Usage:\n";
-    oss << "  uploader.exe --source <path> --email <user@mail.ru> [options]\n\n";
-    oss << "Required:\n";
-    oss << "  --email <email>\n\n";
+    oss << "  uploader.exe [options]\n\n";
+    oss << "Required for sync (non --dry-run):\n";
+    oss << "  --email <email>\n";
+    oss << "  --app-password <password>\n\n";
     oss << "Defaults:\n";
+    oss << "  if no arguments: --dry-run and --source <exe_dir>\\p\n";
     oss << "  --source <exe_dir>\\p\n\n";
     oss << "Options:\n";
     oss << "  --source <path>             Source directory.\n";
-    oss << "  --app-password <password>   App password (required unless --dry-run).\n";
+    oss << "  --app-password <password>   App password (required for sync).\n";
     oss << "  --remote <path>             Remote root (default: /PublicUploadRoot).\n";
     oss << "  --base-url <url>            WebDAV base URL (default: https://webdav.cloud.mail.ru).\n";
     oss << "  --dry-run                   Show actions without uploading or deleting.\n";
@@ -58,6 +60,10 @@ bool ParseArgs(const std::vector<std::string>& args,
             *error = "Internal error: config is null";
         }
         return false;
+    }
+
+    if (args.empty()) {
+        config->dry_run = true;
     }
 
     bool source_set = false;
@@ -177,17 +183,25 @@ bool ParseArgs(const std::vector<std::string>& args,
             return false;
         }
     }
-    if (config->email.empty()) {
+    if (!config->app_password.empty() && config->email.empty()) {
         if (error) {
-            *error = "Missing --email";
+            *error = "--app-password requires --email";
         }
         return false;
     }
-    if (!config->dry_run && config->app_password.empty()) {
-        if (error) {
-            *error = "Missing --app-password (required for non dry-run)";
+    if (!config->dry_run) {
+        if (config->email.empty()) {
+            if (error) {
+                *error = "Missing --email";
+            }
+            return false;
         }
-        return false;
+        if (config->app_password.empty()) {
+            if (error) {
+                *error = "Missing --app-password (required for non dry-run)";
+            }
+            return false;
+        }
     }
     if (config->threads < 1) {
         if (error) {

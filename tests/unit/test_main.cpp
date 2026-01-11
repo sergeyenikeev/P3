@@ -65,6 +65,22 @@ TEST_CASE(ParseArgsBasic) {
     EXPECT_TRUE(config.dry_run);
 }
 
+TEST_CASE(ParseArgsNoParams) {
+    std::filesystem::path root_dir = std::filesystem::temp_directory_path() / "uploader_default_root_empty";
+    std::error_code ec;
+    std::filesystem::remove_all(root_dir, ec);
+
+    AppConfig config;
+    std::string error;
+    bool ok = ParseArgs({}, root_dir, &config, &error);
+    EXPECT_TRUE(ok);
+    EXPECT_TRUE(config.dry_run);
+    EXPECT_TRUE(config.email.empty());
+    std::filesystem::path expected = std::filesystem::absolute(root_dir / "p");
+    EXPECT_EQ(config.source, expected);
+    EXPECT_TRUE(std::filesystem::exists(expected));
+}
+
 TEST_CASE(ParseArgsDefaultSource) {
     std::filesystem::path root_dir = std::filesystem::temp_directory_path() / "uploader_default_root_test";
     std::error_code ec;
