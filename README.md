@@ -15,7 +15,7 @@ cmake --build build --config Release
 ```
 
 ## Использование
-Запуск без параметров (реальная синхронизация при наличии учётных данных в конфиге или переменных окружения):
+Запуск без параметров (реальная синхронизация при наличии учётных данных в конфиге/переменных окружения/скомпилированных значениях):
 ```bat
 build\Release\uploader.exe
 ```
@@ -40,7 +40,7 @@ exclude=*.tmp
 Правила конфигурации:
 - `source` может быть относительным (будет вычислен относительно папки exe).
 - `exclude` можно указывать несколько раз.
-- Приоритет: CLI‑параметры → `uploader.conf` → переменные окружения.
+- Приоритет: CLI‑параметры → `uploader.conf` → переменные окружения → значения, зашитые при компиляции.
 
 ### Переменные окружения (альтернатива)
 - `MAILRU_EMAIL`
@@ -53,12 +53,41 @@ $env:MAILRU_APP_PASSWORD = "****"
 build\Release\uploader.exe
 ```
 
+### Значения по умолчанию, зашитые при компиляции
+Можно собрать бинарник с нужными значениями по умолчанию, чтобы запускать без `uploader.conf` и без переменных окружения.
+
+Пример (значения‑заглушки `TEST`, замените на свои локально и **не коммитьте**):
+```bat
+cmake -S . -B build ^
+  -DDEFAULT_EMAIL=TEST ^
+  -DDEFAULT_APP_PASSWORD=TEST ^
+  -DDEFAULT_SOURCE="C:\Data\ToUpload" ^
+  -DDEFAULT_REMOTE="/PublicUploadRoot" ^
+  -DDEFAULT_BASE_URL="https://webdav.cloud.mail.ru" ^
+  -DDEFAULT_THREADS=2 ^
+  -DDEFAULT_COMPARE="size-mtime" ^
+  -DDEFAULT_DRY_RUN=0 ^
+  -DDEFAULT_EXCLUDES=".git;*.tmp"
+cmake --build build --config Release
+```
+
+Поддерживаемые параметры компиляции:
+- `DEFAULT_EMAIL`
+- `DEFAULT_APP_PASSWORD`
+- `DEFAULT_SOURCE`
+- `DEFAULT_REMOTE`
+- `DEFAULT_BASE_URL`
+- `DEFAULT_THREADS` (целое > 0)
+- `DEFAULT_COMPARE` (`size-mtime` или `size-only`)
+- `DEFAULT_DRY_RUN` (0 или 1)
+- `DEFAULT_EXCLUDES` (разделитель `;` или `,`)
+
 Пример с явным источником и параметрами:
 ```bat
 build\Release\uploader.exe --source "C:\Data\ToUpload" --remote "/PublicUploadRoot" --email "user@mail.ru" --app-password "****"
 ```
 
-Обязательные параметры для синхронизации (если не заданы через конфиг/переменные окружения):
+Обязательные параметры для синхронизации (если не заданы через конфиг/переменные окружения/компиляцию):
 - `--email` email для WebDAV
 - `--app-password` пароль приложения
 

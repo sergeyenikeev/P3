@@ -7,6 +7,7 @@
 #include <sstream>
 #include <vector>
 
+#include "config_defaults.h"
 #include "path_utils.h"
 
 namespace {
@@ -35,6 +36,21 @@ std::string GetEnvValue(const char* name) {
     return value ? value : "";
 }
 
+bool IsPlaceholderValue(const std::string& value) {
+    return ToLowerAscii(value) == "test";
+}
+
+std::string NormalizeDefaultValue(const char* value) {
+    std::string out = value ? value : "";
+    if (out.empty()) {
+        return out;
+    }
+    if (IsPlaceholderValue(out)) {
+        return {};
+    }
+    return out;
+}
+
 std::string Trim(const std::string& value) {
     size_t start = 0;
     while (start < value.size() && std::isspace(static_cast<unsigned char>(value[start]))) {
@@ -45,6 +61,27 @@ std::string Trim(const std::string& value) {
         end--;
     }
     return value.substr(start, end - start);
+}
+
+std::vector<std::string> SplitList(const std::string& value) {
+    std::vector<std::string> result;
+    std::string current;
+    for (char c : value) {
+        if (c == ';' || c == ',') {
+            std::string trimmed = Trim(current);
+            if (!trimmed.empty()) {
+                result.push_back(trimmed);
+            }
+            current.clear();
+        } else {
+            current.push_back(c);
+        }
+    }
+    std::string trimmed = Trim(current);
+    if (!trimmed.empty()) {
+        result.push_back(trimmed);
+    }
+    return result;
 }
 
 void StripBom(std::string* value) {
@@ -206,6 +243,8 @@ std::string BuildUsage() {
     oss << "  --source <exe_dir>\\p\n\n";
     oss << "Config file:\n";
     oss << "  <exe_dir>\\uploader.conf with email/app_password/source/remote/base_url/threads/compare/dry_run/exclude.\n";
+    oss << "Compiled defaults:\n";
+    oss << "  set via CMake cache DEFAULT_* variables.\n";
     oss << "Environment:\n";
     oss << "  MAILRU_EMAIL and MAILRU_APP_PASSWORD can provide credentials.\n\n";
     oss << "Options:\n";
@@ -238,8 +277,6 @@ bool ParseArgs(const std::vector<std::string>& args,
     bool threads_set = false;
     bool compare_set = false;
     bool dry_run_set = false;
-    bool email_set = false;
-    bool app_password_set = false;
     for (size_t i = 0; i < args.size(); ++i) {
         const std::string& arg = args[i];
         if (IsFlag(arg, "--help") || IsFlag(arg, "-h")) {
@@ -272,7 +309,6 @@ bool ParseArgs(const std::vector<std::string>& args,
                 return false;
             }
             config->email = value;
-            email_set = true;
             continue;
         }
         if (IsFlag(arg, "--app-password")) {
@@ -281,7 +317,6 @@ bool ParseArgs(const std::vector<std::string>& args,
                 return false;
             }
             config->app_password = value;
-            app_password_set = true;
             continue;
         }
         if (IsFlag(arg, "--base-url")) {
@@ -380,18 +415,23 @@ bool ParseArgs(const std::vector<std::string>& args,
         }
         if (!remote_set && file_data.has_remote) {
             config->remote = file_data.remote;
+            remote_set = true;
         }
         if (!base_url_set && file_data.has_base_url) {
             config->base_url = file_data.base_url;
+            base_url_set = true;
         }
         if (!threads_set && file_data.has_threads) {
             config->threads = file_data.threads;
+            threads_set = true;
         }
         if (!compare_set && file_data.has_compare) {
             config->compare_mode = file_data.compare_mode;
+            compare_set = true;
         }
         if (!dry_run_set && file_data.has_dry_run) {
             config->dry_run = file_data.dry_run;
+            dry_run_set = true;
         }
         if (config->email.empty() && !file_data.email.empty()) {
             config->email = file_data.email;
@@ -409,6 +449,94 @@ bool ParseArgs(const std::vector<std::string>& args,
         return false;
     }
 
+    if (config->email.empty()) {
+        config->email = GetEnvValue("MAILRU_EMAIL");
+    }
+    if (config->app_password.empty()) {
+        config->app_password = GetEnvValue("MAILRU_APP_PASSWORD");
+    }
+
+    std::string default_email = NormalizeDefaultValue(DEFAULT_EMAIL);
+    if (config->email.empty() && !default_email.empty()) {
+        config->email = default_email;
+    }
+    std::string default_password = NormalizeDefaultValue(DEFAULT_APP_PASSWORD);
+    if (config->app_password.empty() && !default_password.empty()) {
+        config->app_password = default_password;
+    }
+
+    if (!source_set) {
+        std::string default_source = NormalizeDefaultValue(DEFAULT_SOURCE);
+        if (!default_source.empty()) {
+            std::filesystem::path src = std::filesystem::path(default_source);
+            if (src.is_relative()) {
+                src = config_root / src;
+            }
+            config->source = src;
+            source_set = true;
+        }
+    }
+    if (!remote_set) {
+        std::string default_remote = NormalizeDefaultValue(DEFAULT_REMOTE);
+        if (!default_remote.empty()) {
+            config->remote = default_remote;
+            remote_set = true;
+        }
+    }
+    if (!base_url_set) {
+        std::string default_base_url = NormalizeDefaultValue(DEFAULT_BASE_URL);
+        if (!default_base_url.empty()) {
+            config->base_url = default_base_url;
+            base_url_set = true;
+        }
+    }
+    if (!threads_set && DEFAULT_THREADS != 0) {
+        if (DEFAULT_THREADS > 0) {
+            config->threads = DEFAULT_THREADS;
+            threads_set = true;
+        } else {
+            if (error) {
+                *error = "Invalid default threads value";
+            }
+            return false;
+        }
+    }
+    if (!compare_set) {
+        std::string default_compare = NormalizeDefaultValue(DEFAULT_COMPARE);
+        if (!default_compare.empty()) {
+            std::string mode = ToLowerAscii(default_compare);
+            if (mode == "size-mtime") {
+                config->compare_mode = CompareMode::SizeMtime;
+                compare_set = true;
+            } else if (mode == "size-only") {
+                config->compare_mode = CompareMode::SizeOnly;
+                compare_set = true;
+            } else {
+                if (error) {
+                    *error = "Invalid compare value in defaults: " + default_compare;
+                }
+                return false;
+            }
+        }
+    }
+    if (!dry_run_set && DEFAULT_DRY_RUN != -1) {
+        if (DEFAULT_DRY_RUN == 0 || DEFAULT_DRY_RUN == 1) {
+            config->dry_run = (DEFAULT_DRY_RUN == 1);
+            dry_run_set = true;
+        } else {
+            if (error) {
+                *error = "Invalid dry_run value in defaults";
+            }
+            return false;
+        }
+    }
+    std::string default_excludes = NormalizeDefaultValue(DEFAULT_EXCLUDES);
+    if (!default_excludes.empty()) {
+        for (const auto& pattern : SplitList(default_excludes)) {
+            config->excludes.push_back(pattern);
+        }
+    }
+
     if (!source_set) {
         std::filesystem::path base = default_source_root;
         if (base.empty()) {
@@ -423,13 +551,6 @@ bool ParseArgs(const std::vector<std::string>& args,
             }
             return false;
         }
-    }
-
-    if (config->email.empty()) {
-        config->email = GetEnvValue("MAILRU_EMAIL");
-    }
-    if (config->app_password.empty()) {
-        config->app_password = GetEnvValue("MAILRU_APP_PASSWORD");
     }
 
     if (!config->app_password.empty() && config->email.empty()) {
