@@ -250,7 +250,7 @@ std::string BuildUsage() {
     oss << "Options:\n";
     oss << "  --source <path>             Source directory.\n";
     oss << "  --app-password <password>   App password (required for sync).\n";
-    oss << "  --remote <path>             Remote root (default: /PublicUploadRoot).\n";
+    oss << "  --remote <path>             Remote root (default: /Backup/p2).\n";
     oss << "  --base-url <url>            WebDAV base URL (default: https://webdav.cloud.mail.ru).\n";
     oss << "  --dry-run                   Show actions without uploading or deleting.\n";
     oss << "  --threads <n>               Number of worker threads (default: 1).\n";

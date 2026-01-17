@@ -28,7 +28,7 @@ build\Release\uploader.exe
 email=user@mail.ru
 app_password=****
 source=C:\Data\ToUpload
-remote=/PublicUploadRoot
+remote=/Backup/p2
 base_url=https://webdav.cloud.mail.ru
 threads=2
 compare=size-mtime
@@ -62,7 +62,7 @@ cmake -S . -B build ^
   -DDEFAULT_EMAIL=TEST ^
   -DDEFAULT_APP_PASSWORD=TEST ^
   -DDEFAULT_SOURCE="C:\Data\ToUpload" ^
-  -DDEFAULT_REMOTE="/PublicUploadRoot" ^
+  -DDEFAULT_REMOTE="/Backup/p2" ^
   -DDEFAULT_BASE_URL="https://webdav.cloud.mail.ru" ^
   -DDEFAULT_THREADS=2 ^
   -DDEFAULT_COMPARE="size-mtime" ^
@@ -95,7 +95,7 @@ cmake --build build --config Release
 
 Пример с явным источником и параметрами:
 ```bat
-build\Release\uploader.exe --source "C:\Data\ToUpload" --remote "/PublicUploadRoot" --email "user@mail.ru" --app-password "****"
+build\Release\uploader.exe --source "C:\Data\ToUpload" --remote "/Backup/p2" --email "user@mail.ru" --app-password "****"
 ```
 
 Обязательные параметры для синхронизации (если не заданы через конфиг/переменные окружения/компиляцию):
@@ -106,7 +106,7 @@ build\Release\uploader.exe --source "C:\Data\ToUpload" --remote "/PublicUploadRo
 - `--source` если не задан, используется подпапка `p` рядом с исполняемым файлом (`<exe_dir>\p`). Каталог создаётся автоматически.
 
 Рекомендуемые параметры:
-- `--remote` удалённый корень назначения (по умолчанию `/PublicUploadRoot`)
+- `--remote` удалённый корень назначения (по умолчанию `/Backup/p2`)
 - `--dry-run` только показать действия, без загрузки и удаления
 - `--threads N` число потоков (по умолчанию 1)
 - `--exclude PATTERN` исключить путь по маске (`*` и `?`), можно указывать многократно
@@ -145,9 +145,9 @@ build\Release\uploader.exe --source "C:\Data\ToUpload" --remote "/PublicUploadRo
 WebDAV работает с путями внутри облака, а публичная ссылка не всегда однозначно отображается на путь.
 
 Рекомендуемый способ:
-1. В веб-интерфейсе Mail.ru Cloud создайте папку (например `PublicUploadRoot`).
+1. В веб-интерфейсе Mail.ru Cloud создайте папку (например `Backup/p2`).
 2. Откройте эту папку и опубликуйте её (создайте публичную ссылку).
-3. Используйте путь `/PublicUploadRoot` как значение `--remote`.
+3. Используйте путь `/Backup/p2` как значение `--remote`.
 
 Если у вас уже есть публичная ссылка, откройте её в браузере, перейдите в режим «Открыть в облаке» и посмотрите путь в хлебных крошках — его и используйте для `--remote`.
 

@@ -1,5 +1,7 @@
 #include <filesystem>
 #include <iostream>
+#include <sstream>
+#include <vector>
 
 #include <windows.h>
 
@@ -20,6 +22,17 @@ std::filesystem::path GetExecutableDir() {
     buffer.resize(size);
     std::filesystem::path exe_path(buffer);
     return exe_path.parent_path();
+}
+
+std::string JoinList(const std::vector<std::string>& items, const std::string& sep) {
+    std::ostringstream oss;
+    for (size_t i = 0; i < items.size(); ++i) {
+        if (i > 0) {
+            oss << sep;
+        }
+        oss << items[i];
+    }
+    return oss.str();
 }
 
 }  // namespace
@@ -43,15 +56,25 @@ int main(int argc, char** argv) {
 
     Logger logger("logs");
     logger.Info("Start");
+    logger.Info("Log file: " + logger.LogPath().string());
     logger.Info("Mode: " + std::string(config.dry_run ? "dry-run" : "sync"));
+    logger.Info("Dry-run: " + std::string(config.dry_run ? "true" : "false"));
     logger.Info("Source: " + config.source.string());
-    logger.Info("Remote: " + config.remote);
+    logger.Info("Remote root: " + config.remote);
+    logger.Info("Target URL: " + config.base_url + config.remote);
     logger.Info("Email: " + config.email);
     logger.Info("Base URL: " + config.base_url);
     logger.Info("Threads: " + std::to_string(config.threads));
     logger.Info("Compare: " + std::string(config.compare_mode == CompareMode::SizeOnly
                                               ? "size-only"
                                               : "size-mtime"));
+    logger.Info("Excludes: " + (config.excludes.empty() ? "(none)" : JoinList(config.excludes, ";")));
+
+    std::filesystem::path config_path = exe_dir / "uploader.conf";
+    std::error_code ec;
+    bool config_exists = std::filesystem::exists(config_path, ec) && !ec;
+    logger.Info("Config file: " + config_path.string() + " (" +
+                (config_exists ? "found" : "absent") + ")");
 
     SyncStats stats = RunSync(config, logger);
 

@@ -11,7 +11,7 @@ enum class CompareMode {
 
 struct AppConfig {
     std::filesystem::path source;
-    std::string remote = "/PublicUploadRoot";
+    std::string remote = "/Backup/p2";
     std::string email;
     std::string app_password;
     std::string base_url = "https://webdav.cloud.mail.ru";
