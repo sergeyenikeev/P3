@@ -54,9 +54,9 @@ build\Release\uploader.exe
 ```
 
 ### Значения по умолчанию, зашитые при компиляции
-Можно собрать бинарник с нужными значениями по умолчанию, чтобы запускать без `uploader.conf` и без переменных окружения.
+Можно собрать бинарник с нужными значениями по умолчанию, чтобы запускать **без** `uploader.conf` и без переменных окружения.
 
-Пример (значения‑заглушки `TEST`, замените на свои локально и **не коммитьте**):
+Способ 1: явно через `DEFAULT_*`:
 ```bat
 cmake -S . -B build ^
   -DDEFAULT_EMAIL=TEST ^
@@ -71,6 +71,16 @@ cmake -S . -B build ^
 cmake --build build --config Release
 ```
 
+Способ 2: импортировать все параметры из `uploader.conf` при сборке:
+```bat
+cmake -S . -B build -DDEFAULTS_FROM_CONF_PATH="C:\Path\To\uploader.conf"
+cmake --build build --config Release
+```
+
+Важно:
+- Значения `DEFAULT_*` и `DEFAULTS_FROM_CONF_PATH` **вшиваются** в бинарник, поэтому не распространяйте `uploader.exe` с боевыми паролями.
+- Если `uploader.conf` присутствует рядом с exe, он имеет более высокий приоритет и перекрывает значения, зашитые при компиляции.
+
 Поддерживаемые параметры компиляции:
 - `DEFAULT_EMAIL`
 - `DEFAULT_APP_PASSWORD`
@@ -81,6 +91,7 @@ cmake --build build --config Release
 - `DEFAULT_COMPARE` (`size-mtime` или `size-only`)
 - `DEFAULT_DRY_RUN` (0 или 1)
 - `DEFAULT_EXCLUDES` (разделитель `;` или `,`)
+- `DEFAULTS_FROM_CONF_PATH` (путь к `uploader.conf` для импорта)
 
 Пример с явным источником и параметрами:
 ```bat

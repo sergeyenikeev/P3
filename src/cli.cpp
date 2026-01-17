@@ -244,7 +244,7 @@ std::string BuildUsage() {
     oss << "Config file:\n";
     oss << "  <exe_dir>\\uploader.conf with email/app_password/source/remote/base_url/threads/compare/dry_run/exclude.\n";
     oss << "Compiled defaults:\n";
-    oss << "  set via CMake cache DEFAULT_* variables.\n";
+    oss << "  set via CMake cache DEFAULT_* variables or DEFAULTS_FROM_CONF_PATH.\n";
     oss << "Environment:\n";
     oss << "  MAILRU_EMAIL and MAILRU_APP_PASSWORD can provide credentials.\n\n";
     oss << "Options:\n";
